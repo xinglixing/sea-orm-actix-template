@@ -1,0 +1,14 @@
+[package]
+name = "sea-orm-play"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [".", "entity", "migration"]
+
+[dependencies]
+actix-web = "4"
+dotenv = "0.15"
+serde = "1"
+entity = { path = "entity" }
+migration = { path = "migration" }
