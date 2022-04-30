@@ -1,11 +1,11 @@
 use std::env;
 use std::time::Duration;
 
-use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{get, post, web, App, Error, HttpResponse, HttpServer, Responder, Result};
 
 use entity::post;
 use entity::post::Entity as Post;
-use entity::sea_orm::{self, ConnectOptions, Database, DatabaseConnection};
+use entity::sea_orm::{self, ActiveModelTrait, ConnectOptions, Database, DatabaseConnection, Set};
 use migration::{Migrator, MigratorTrait};
 
 #[derive(Debug, Clone)]
@@ -13,11 +13,32 @@ struct AppState {
     conn: DatabaseConnection,
 }
 
+#[post("/")]
+async fn create(
+    data: web::Data<AppState>,
+    post_data: web::Json<post::Model>,
+) -> Result<HttpResponse, Error> {
+    let conn = &data.conn;
+    let post = post_data.into_inner();
+
+    println!("{:?}", &post);
+
+    let data = post::ActiveModel {
+        title: Set(post.title.to_owned()),
+        text: Set(post.text.to_owned()),
+        ..Default::default()
+    };
+
+    let data = data.insert(conn).await.expect("could not insert post");
+
+    Ok(HttpResponse::Created().json(data))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
     // get env vars
     dotenv::dotenv().ok();
+    std::env::set_var("RUST_LOG", "actix_web=debug");
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
     // establish connection to database and apply migrations
@@ -40,6 +61,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(state.clone()))
             .route("/hello", web::get().to(|| async { "Hello World!" }))
+            .service(create)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
